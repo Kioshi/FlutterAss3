@@ -46,8 +46,12 @@ class _MyHomePageState extends State<MyHomePage> {
   static const int RAW = 0;
   static const int MEAN = 1;
   static const int MED = 2;
+  static const int TYPE_WALK = 0;
+  static const int TYPE_RUN = 1;
+  static const int TYPE_BIKE = 2;
+  static const int TYPE_CAR = 3;
 
-  int activeType = 0;
+  int activeType = TYPE_BIKE;
   List<List<List<List<LatLng>>>> positions = generatePositionsList();
 
   List<List<String>> texts = [
@@ -64,6 +68,8 @@ class _MyHomePageState extends State<MyHomePage> {
     [const Color(0x70FF5722), const Color(0x70FF9800), const Color(0x70FFEB3B)]
   ];
 
+  List<String> assets = ["assets/walking.csv", "assets/running.csv", "assets/biking.csv", "assets/driving.csv"];
+
   List<RaisedButton> dataButtons = [];
 
   Future initFuture;
@@ -72,21 +78,27 @@ class _MyHomePageState extends State<MyHomePage> {
     initFuture = init();
   }
 
+  MapController mapController = MapController();
+
   init() async {
     generateDataButtons();
     clearPositions();
     for (int k = 0; k < TRANSPORT_TYPES; k++) {
           final csvCodec = new CsvCodec(eol: "\n");
-          List<List<dynamic>> table = await rootBundle
-              .loadString("assets/biking.csv")
-              .asStream()
-              .transform(csvCodec.decoder)
-              .toList();
-          table.removeAt(0);
+          List<List<dynamic>> table  = await rootBundle
+                .loadString(assets[k])
+                .asStream()
+                .transform(csvCodec.decoder)
+                .toList();
+            table.removeAt(0);
           setState(() {
             for (List<dynamic> row in table) {
-              positions[k][0][RAW].add(LatLng(row[1], row[2]));
-              positions[k][1][RAW].add(LatLng(row[3], row[4]));
+              LatLng GTll = LatLng(row[1], row[2]);
+              LatLng Mobilell = LatLng(row[3], row[4]);
+              //if (positions[k][0][RAW].isEmpty || positions[k][0][RAW].last != GTll)
+                positions[k][0][RAW].add(GTll);
+              //if (positions[k][1][RAW].isEmpty || positions[k][1][RAW].last != Mobilell)
+                positions[k][1][RAW].add(Mobilell);
             }
 
             for (int j = 0; j < SOURCES; j++) {
@@ -123,14 +135,20 @@ class _MyHomePageState extends State<MyHomePage> {
             Polyline(points: positions[activeType][j][i], color: colors[j][i]));
       }
     }
+    LatLng focusPos = positions[activeType][0][0].isEmpty ? LatLng(0.0,0.0) : positions[activeType][0][0][0];
+    if (mapController.ready) {
+      mapController.move(focusPos, mapController.zoom);
+    }
     return new Scaffold(
         appBar: new AppBar(
           title: new Text("Leaflet test page"),
         ),
         body: Stack(children: <Widget>[
           FlutterMap(
+            mapController: mapController,
             options: MapOptions(
-                minZoom: 10.0, center: LatLng(56.25714966666666, 10.0690625)),
+                /*minZoom: 10.0, */
+                center: positions[activeType][0][0].isEmpty ? LatLng(0.0,0.0) : positions[activeType][0][0][0]),//LatLng(56.25714966666666, 10.0690625)),
             layers: [
               TileLayerOptions(
                   urlTemplate:
@@ -157,27 +175,29 @@ class _MyHomePageState extends State<MyHomePage> {
               children: <Widget>[
                 RaisedButton(
                     key: null,
-                    onPressed: null,
-                    color: const Color(0xFFe0e0e0),
+                    onPressed: () => setState(() {activeType = TYPE_WALK;}),
+                    color: activeType != TYPE_WALK ? const Color(0xFFe0e0e0) : Colors.grey,
                     child: Icon(Icons.directions_walk)),
                 RaisedButton(
                     key: null,
-                    onPressed: null,
-                    color: const Color(0xFFe0e0e0),
+                    onPressed: () => setState(() {activeType = TYPE_RUN;}),
+                    color: activeType != TYPE_RUN ? const Color(0xFFe0e0e0) : Colors.grey,
                     child: Icon(Icons.directions_run)),
                 RaisedButton(
                     key: null,
-                    onPressed: null,
-                    color: const Color(0xFFe0e0e0),
+                    onPressed: () => setState(() {activeType = TYPE_BIKE;}),
+                    color: activeType != TYPE_BIKE ? const Color(0xFFe0e0e0) : Colors.grey,
                     child: Icon(Icons.directions_bike)),
                 RaisedButton(
                     key: null,
-                    onPressed: null,
-                    color: const Color(0xFFe0e0e0),
+                    onPressed: () => setState(() {activeType = TYPE_CAR;}),
+                    color: activeType != TYPE_CAR ? const Color(0xFFe0e0e0) : Colors.grey,
                     child: Icon(Icons.directions_car))
               ])
         ]));
   }
+
+
 
   void clearPositions() {
     for (int k = 0; k < TRANSPORT_TYPES; k++) {
