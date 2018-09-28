@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -32,150 +33,243 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   @override
-  _MyHomePageState createState()
-  {
+  _MyHomePageState createState() {
     _MyHomePageState state = _MyHomePageState();
-    state.generateBikePolyline();
     return state;
   }
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static const int SOURCES = 2;
+  static const int NORM_TYPES = 3;
+  static const int TRANSPORT_TYPES = 4;
+  static const int RAW = 0;
+  static const int MEAN = 1;
+  static const int MED = 2;
 
-  final int SOURCES = 2;
-  final int TYPES = 3;
-  final int RAW = 0;
-  final int MEAN = 1;
-  final int MED = 2;
-  List<List<List<LatLng>>> positions = [[[],[],[]],[[],[],[]]];
+  int activeType = 0;
+  List<List<List<List<LatLng>>>> positions = generatePositionsList();
 
-  List<List<Color>> colors = [[Colors.deepPurple, Colors.purple, Colors.purpleAccent],
-    [Colors.deepOrange, Colors.orange, Colors.yellow]];
+  List<List<String>> texts = [
+    ["GT Raw", "GT Mean", "GT Med"],
+    ["Phone Raw", "Phone Mean", "Phone Med"]
+  ];
+  List<List<bool>> active = [
+    [true, true, true],
+    [true, true, true]
+  ];
+
+  List<List<Color>> colors = [
+    [const Color(0x70673AB7), const Color(0x709C27B0), const Color(0x70E040FB)],
+    [const Color(0x70FF5722), const Color(0x70FF9800), const Color(0x70FFEB3B)]
+  ];
+
+  List<RaisedButton> dataButtons = [];
+
+  Future initFuture;
+
+  _MyHomePageState() {
+    initFuture = init();
+  }
+
+  init() async {
+    generateDataButtons();
+    clearPositions();
+    for (int k = 0; k < TRANSPORT_TYPES; k++) {
+          final csvCodec = new CsvCodec(eol: "\n");
+          List<List<dynamic>> table = await rootBundle
+              .loadString("assets/biking.csv")
+              .asStream()
+              .transform(csvCodec.decoder)
+              .toList();
+          table.removeAt(0);
+          setState(() {
+            for (List<dynamic> row in table) {
+              positions[k][0][RAW].add(LatLng(row[1], row[2]));
+              positions[k][1][RAW].add(LatLng(row[3], row[4]));
+            }
+
+            for (int j = 0; j < SOURCES; j++) {
+              calculateMeanPositions(k, j);
+              calculateMedianPositions(k, j);
+            }
+          });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-
     List<Marker> markers = [];
     List<Polyline> polylines = [];
 
-    for(int j = 0; j < SOURCES; j++) {
-      for (int i = 0; i < TYPES; i++) {
-        markers.addAll(positions[j][i].map((latlng) {
+    for (int j = 0; j < SOURCES; j++) {
+      for (int i = 0; i < NORM_TYPES; i++) {
+        if (!active[j][i]) continue;
+        markers.addAll(positions[activeType][j][i].map((latlng) {
           return new Marker(
             width: 5.0,
             height: 5.0,
             point: latlng,
-            builder: (ctx) =>
-            new Container(
-              decoration: new BoxDecoration(
-                color: colors[j][i],
-                shape: BoxShape.circle,
-              ),
-            ),
+            builder: (ctx) => new Container(
+                  decoration: new BoxDecoration(
+                    color: colors[j][i],
+                    shape: BoxShape.circle,
+                  ),
+                ),
           );
         }).toList());
 
-
-        polylines.add(Polyline(points: positions[j][i], color: colors[j][i]));
+        polylines.add(
+            Polyline(points: positions[activeType][j][i], color: colors[j][i]));
       }
     }
     return new Scaffold(
-      appBar: new AppBar(
-        title: new Text("Leaflet test page"),
-      ),
-      body: FlutterMap(
-        options: MapOptions(
-          minZoom: 10.0,
-          center: LatLng(56.25714966666666,10.0690625)
+        appBar: new AppBar(
+          title: new Text("Leaflet test page"),
         ),
-        layers: [
-          TileLayerOptions(
-            urlTemplate: "https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}@2x.png?access_token={accessToken}",
-            additionalOptions: {
-              'accessToken': 'pk.eyJ1Ijoia2xleGlrIiwiYSI6ImNqbW0wNng1cjBjdjczcW83bDR6cXhkemkifQ.vsqKwg4BWrMwKfMV6i_sbw',
-              'id': 'mapbox.streets'
-            }
+        body: Stack(children: <Widget>[
+          FlutterMap(
+            options: MapOptions(
+                minZoom: 10.0, center: LatLng(56.25714966666666, 10.0690625)),
+            layers: [
+              TileLayerOptions(
+                  urlTemplate:
+                      "https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}@2x.png?access_token={accessToken}",
+                  additionalOptions: {
+                    'accessToken':
+                        'pk.eyJ1Ijoia2xleGlrIiwiYSI6ImNqbW0wNng1cjBjdjczcW83bDR6cXhkemkifQ.vsqKwg4BWrMwKfMV6i_sbw',
+                    'id': 'mapbox.streets'
+                  }),
+              PolylineLayerOptions(polylines: polylines),
+              MarkerLayerOptions(markers: markers)
+            ],
           ),
-          PolylineLayerOptions(
-            polylines: polylines
-          ),
-          MarkerLayerOptions(markers: markers)
-        ],
-      ),
-    );
+          new Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              verticalDirection: VerticalDirection.up,
+              children: dataButtons),
+          new Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
+                RaisedButton(
+                    key: null,
+                    onPressed: null,
+                    color: const Color(0xFFe0e0e0),
+                    child: Icon(Icons.directions_walk)),
+                RaisedButton(
+                    key: null,
+                    onPressed: null,
+                    color: const Color(0xFFe0e0e0),
+                    child: Icon(Icons.directions_run)),
+                RaisedButton(
+                    key: null,
+                    onPressed: null,
+                    color: const Color(0xFFe0e0e0),
+                    child: Icon(Icons.directions_bike)),
+                RaisedButton(
+                    key: null,
+                    onPressed: null,
+                    color: const Color(0xFFe0e0e0),
+                    child: Icon(Icons.directions_car))
+              ])
+        ]));
   }
 
-  void clearPositions()
-  {
-    for(int j = 0; j < SOURCES; j++) {
-      for (int i = 0; i < TYPES; i++) {
-        positions[j][i].clear();
+  void clearPositions() {
+    for (int k = 0; k < TRANSPORT_TYPES; k++) {
+      for (int j = 0; j < SOURCES; j++) {
+        for (int i = 0; i < NORM_TYPES; i++) {
+          positions[k][j][i].clear();
+        }
       }
     }
   }
 
-  void generateBikePolyline() async {
-    final csvCodec = new CsvCodec(eol: "\n");
-    List<List<dynamic>> table = await rootBundle.loadString("assets/biking.csv").asStream().transform(csvCodec.decoder).toList();
-    table.removeAt(0);
+  void dataButtonPressed(int source, int type) {
     setState(() {
-      clearPositions();
-
-      for (List<dynamic> row in table)
-      {
-        positions[0][RAW].add(LatLng(row[1],row[2]));
-        positions[1][RAW].add(LatLng(row[3],row[4]));
-      }
-      calculateMeanPositions();
-      calculateMedianPositions();
+      active[source][type] = !active[source][type];
+      generateDataButtons();
     });
   }
 
-  void calculateMeanPositions() {
-    for (int j = 0; j < SOURCES; j++)
-    {
-      for (int i = 0; i<positions[j][RAW].length; i++)
-      {
-        if (i < 5)
-        {
-          positions[j][MEAN].add(positions[j][RAW][i]);
-          continue;
-        }
+  void calculateMeanPositions(int k, int j) {
+    for (int i = 0; i < positions[k][j][RAW].length; i++) {
+      if (i < 5) {
+        positions[k][j][MEAN].add(positions[k][j][RAW][i]);
+        continue;
+      }
 
-        double lat = 0.0;
-        double lon = 0.0;
-        positions[j][RAW].getRange(i-5, i).forEach((LatLng latLon){
-          lat += latLon.latitude;
-          lon += latLon.longitude;
-        });
+      double lat = 0.0;
+      double lon = 0.0;
+      positions[k][j][RAW].getRange(i - 5, i).forEach((LatLng latLon) {
+        lat += latLon.latitude;
+        lon += latLon.longitude;
+      });
 
-        positions[j][MEAN].add(LatLng(lat/5.0, lon/5.0));
+      positions[k][j][MEAN].add(LatLng(lat / 5.0, lon / 5.0));
+    }
+  }
+
+  void calculateMedianPositions(int k, int j) {
+    for (int i = 0; i < positions[k][j][RAW].length; i++) {
+      if (i < 5) {
+        positions[k][j][MED].add(positions[k][j][RAW][i]);
+        continue;
+      }
+
+      List<double> lat = [];
+      List<double> lon = [];
+      positions[k][j][RAW].getRange(i - 5, i).forEach((LatLng latLon) {
+        lat.add(latLon.latitude);
+        lon.add(latLon.longitude);
+      });
+
+      lat.sort();
+      lon.sort();
+      positions[k][j][MED].add(LatLng(lat[2], lon[2]));
+    }
+  }
+
+  Color dataButtonColor(int source, int type) {
+    return active[source][type] ? colors[source][type] : Colors.grey;
+  }
+
+  void generateDataButtons() {
+    dataButtons.clear();
+    for (int j = 0; j < SOURCES; j++) {
+      for (int i = 0; i < NORM_TYPES; i++) {
+        dataButtons.add(RaisedButton(
+            key: null,
+            onPressed: () => dataButtonPressed(j, i),
+            color: dataButtonColor(j, i),
+            child: new Text(
+              texts[j][i],
+              style: new TextStyle(
+                  fontSize: 12.0,
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: "Roboto"),
+            )));
       }
     }
   }
 
-  void calculateMedianPositions() {
-    for (int j = 0; j < SOURCES; j++)
-    {
-      for (int i = 0; i<positions[j][RAW].length; i++)
-      {
-        if (i < 5)
-        {
-          positions[j][MED].add(positions[j][RAW][i]);
-          continue;
+  static List<List<List<List<LatLng>>>> generatePositionsList() {
+    List<List<List<List<LatLng>>>> list = [];
+    for (int k = 0; k < TRANSPORT_TYPES; k++) {
+      list.add(List<List<List<LatLng>>>());
+      for (int j = 0; j < SOURCES; j++) {
+        list[k].add(List<List<LatLng>>());
+        for (int i = 0; i < NORM_TYPES; i++) {
+          list[k][j].add(List<LatLng>());
         }
-
-        List<double> lat = [];
-        List<double> lon = [];
-        positions[j][RAW].getRange(i-5, i).forEach((LatLng latLon){
-          lat.add(latLon.latitude);
-          lon.add(latLon.longitude);
-        });
-
-        lat.sort();
-        lon.sort();
-        positions[j][MED].add(LatLng(lat[2], lon[2]));
       }
     }
+
+    return list;
   }
 }
