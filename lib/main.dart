@@ -33,14 +33,36 @@ class MyApp extends StatelessWidget {
 
 class MyHomePage extends StatefulWidget {
   @override
-  _MyHomePageState createState() => new _MyHomePageState();
+  _MyHomePageState createState()
+  {
+    _MyHomePageState state = _MyHomePageState();
+    state.generateBikePolyline();
+    return state;
+  }
 }
 
 class _MyHomePageState extends State<MyHomePage> {
 
+  List<LatLng> rawBikePositions = [];
+
   @override
   Widget build(BuildContext context) {
-    generateBikePolyline();
+    var markers = rawBikePositions.map((latlng) {
+      return new Marker(
+        width: 5.0,
+        height: 5.0,
+        point: latlng,
+        builder: (ctx) => new Container(
+          decoration: new BoxDecoration(
+            color: Colors.orange,
+            shape: BoxShape.circle,
+          ),
+        ),
+      );
+    }).toList();
+    var polilyne = Polyline(points: rawBikePositions);
+
+
     return new Scaffold(
       appBar: new AppBar(
         title: new Text("Leaflet test page"),
@@ -48,7 +70,7 @@ class _MyHomePageState extends State<MyHomePage> {
       body: FlutterMap(
         options: MapOptions(
           minZoom: 10.0,
-          center: LatLng(40.71, -74.00)
+          center: LatLng(56.25714966666666,10.0690625)
         ),
         layers: [
           TileLayerOptions(
@@ -59,24 +81,26 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           ),
           PolylineLayerOptions(
-            polylines: [
+            polylines: [polilyne
             ]
-          )
+          ),
+          MarkerLayerOptions(markers: markers)
         ],
       ),
     );
   }
 
-  Future<Polyline> generateBikePolyline() async {
-    //Future<String> data = getFileData("biking.csv");
-    final csvCodec = new CsvCodec();
-      String str = await rootBundle.loadString(
-          "assets/biking.csv");
-      print(str);
-    //final fields = data.asStream().transform(csvCodec.decoder).toList();
-      return Polyline(
-        points: []
-      );
+  void generateBikePolyline() async {
+    final csvCodec = new CsvCodec(eol: "\n");
+    List<List<dynamic>> table = await rootBundle.loadString("assets/biking.csv").asStream().transform(csvCodec.decoder).toList();
+    table.removeAt(0);
+    setState(() {
+      for (List<dynamic> row in table)
+      {
+        rawBikePositions.add(LatLng(row[1],row[2]));
+        rawBikePositions.add(LatLng(row[3],row[4]));
+      }
+    });
   }
 
   Future<String> getFileData(String path) async {
