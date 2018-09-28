@@ -43,26 +43,38 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
 
-  List<LatLng> rawBikePositions = [];
+  List<List<List<LatLng>>> positions = [[[],[],[]],[[],[],[]]];
+
+  List<List<Color>> colors = [[Colors.deepPurple, Colors.purple, Colors.purpleAccent],
+    [Colors.deepOrange, Colors.orange, Colors.yellow]];
 
   @override
   Widget build(BuildContext context) {
-    var markers = rawBikePositions.map((latlng) {
-      return new Marker(
-        width: 5.0,
-        height: 5.0,
-        point: latlng,
-        builder: (ctx) => new Container(
-          decoration: new BoxDecoration(
-            color: Colors.orange,
-            shape: BoxShape.circle,
-          ),
-        ),
-      );
-    }).toList();
-    var polilyne = Polyline(points: rawBikePositions);
+
+    List<Marker> markers = [];
+    List<Polyline> polylines = [];
+
+    for(int j = 0; j < 2; j++) {
+      for (int i = 0; i < 3; i++) {
+        markers.addAll(positions[j][i].map((latlng) {
+          return new Marker(
+            width: 5.0,
+            height: 5.0,
+            point: latlng,
+            builder: (ctx) =>
+            new Container(
+              decoration: new BoxDecoration(
+                color: colors[j][i],
+                shape: BoxShape.circle,
+              ),
+            ),
+          );
+        }).toList());
 
 
+        polylines.add(Polyline(points: positions[j][i], color: colors[j][i]));
+      }
+    }
     return new Scaffold(
       appBar: new AppBar(
         title: new Text("Leaflet test page"),
@@ -81,8 +93,7 @@ class _MyHomePageState extends State<MyHomePage> {
             }
           ),
           PolylineLayerOptions(
-            polylines: [polilyne
-            ]
+            polylines: polylines
           ),
           MarkerLayerOptions(markers: markers)
         ],
@@ -90,20 +101,37 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
+  void clearPositions()
+  {
+    for(int j = 0; j < 2; j++) {
+      for (int i = 0; i < 3; i++) {
+        positions[j][i].clear();
+      }
+    }
+  }
+
   void generateBikePolyline() async {
     final csvCodec = new CsvCodec(eol: "\n");
     List<List<dynamic>> table = await rootBundle.loadString("assets/biking.csv").asStream().transform(csvCodec.decoder).toList();
     table.removeAt(0);
     setState(() {
+      clearPositions();
+
       for (List<dynamic> row in table)
       {
-        rawBikePositions.add(LatLng(row[1],row[2]));
-        rawBikePositions.add(LatLng(row[3],row[4]));
+        positions[0][0].add(LatLng(row[1],row[2]));
+        positions[1][0].add(LatLng(row[3],row[4]));
       }
+      calculateMeanPositions();
+      calculateMedianPositions();
     });
   }
 
-  Future<String> getFileData(String path) async {
-    return await rootBundle.loadString(path);
+  void calculateMeanPositions() {
+
+  }
+
+  void calculateMedianPositions() {
+
   }
 }
