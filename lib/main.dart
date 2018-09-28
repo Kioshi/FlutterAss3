@@ -5,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong/latlong.dart';
 import 'package:csv/csv.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'dart:async';
 
 void main() => runApp(new MyApp());
 
@@ -43,6 +42,11 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
 
+  final int SOURCES = 2;
+  final int TYPES = 3;
+  final int RAW = 0;
+  final int MEAN = 1;
+  final int MED = 2;
   List<List<List<LatLng>>> positions = [[[],[],[]],[[],[],[]]];
 
   List<List<Color>> colors = [[Colors.deepPurple, Colors.purple, Colors.purpleAccent],
@@ -54,8 +58,8 @@ class _MyHomePageState extends State<MyHomePage> {
     List<Marker> markers = [];
     List<Polyline> polylines = [];
 
-    for(int j = 0; j < 2; j++) {
-      for (int i = 0; i < 3; i++) {
+    for(int j = 0; j < SOURCES; j++) {
+      for (int i = 0; i < TYPES; i++) {
         markers.addAll(positions[j][i].map((latlng) {
           return new Marker(
             width: 5.0,
@@ -103,8 +107,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void clearPositions()
   {
-    for(int j = 0; j < 2; j++) {
-      for (int i = 0; i < 3; i++) {
+    for(int j = 0; j < SOURCES; j++) {
+      for (int i = 0; i < TYPES; i++) {
         positions[j][i].clear();
       }
     }
@@ -119,8 +123,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
       for (List<dynamic> row in table)
       {
-        positions[0][0].add(LatLng(row[1],row[2]));
-        positions[1][0].add(LatLng(row[3],row[4]));
+        positions[0][RAW].add(LatLng(row[1],row[2]));
+        positions[1][RAW].add(LatLng(row[3],row[4]));
       }
       calculateMeanPositions();
       calculateMedianPositions();
@@ -128,10 +132,50 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void calculateMeanPositions() {
+    for (int j = 0; j < SOURCES; j++)
+    {
+      for (int i = 0; i<positions[j][RAW].length; i++)
+      {
+        if (i < 5)
+        {
+          positions[j][MEAN].add(positions[j][RAW][i]);
+          continue;
+        }
 
+        double lat = 0.0;
+        double lon = 0.0;
+        positions[j][RAW].getRange(i-5, i).forEach((LatLng latLon){
+          lat += latLon.latitude;
+          lon += latLon.longitude;
+        });
+
+        positions[j][MEAN].add(LatLng(lat/5.0, lon/5.0));
+      }
+    }
   }
 
   void calculateMedianPositions() {
+    for (int j = 0; j < SOURCES; j++)
+    {
+      for (int i = 0; i<positions[j][RAW].length; i++)
+      {
+        if (i < 5)
+        {
+          positions[j][MED].add(positions[j][RAW][i]);
+          continue;
+        }
 
+        List<double> lat = [];
+        List<double> lon = [];
+        positions[j][RAW].getRange(i-5, i).forEach((LatLng latLon){
+          lat.add(latLon.latitude);
+          lon.add(latLon.longitude);
+        });
+
+        lat.sort();
+        lon.sort();
+        positions[j][MED].add(LatLng(lat[2], lon[2]));
+      }
+    }
   }
 }
