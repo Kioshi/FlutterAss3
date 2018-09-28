@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong/latlong.dart';
+import 'package:csv/csv.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:async';
 
 void main() => runApp(new MyApp());
 
@@ -35,6 +40,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    generateBikePolyline();
     return new Scaffold(
       appBar: new AppBar(
         title: new Text("Leaflet test page"),
@@ -51,9 +57,29 @@ class _MyHomePageState extends State<MyHomePage> {
               'accessToken': 'pk.eyJ1Ijoia2xleGlrIiwiYSI6ImNqbW0wNng1cjBjdjczcW83bDR6cXhkemkifQ.vsqKwg4BWrMwKfMV6i_sbw',
               'id': 'mapbox.streets'
             }
+          ),
+          PolylineLayerOptions(
+            polylines: [
+            ]
           )
         ],
       ),
     );
+  }
+
+  Future<Polyline> generateBikePolyline() async {
+    //Future<String> data = getFileData("biking.csv");
+    final csvCodec = new CsvCodec();
+      String str = await rootBundle.loadString(
+          "assets/biking.csv");
+      print(str);
+    //final fields = data.asStream().transform(csvCodec.decoder).toList();
+      return Polyline(
+        points: []
+      );
+  }
+
+  Future<String> getFileData(String path) async {
+    return await rootBundle.loadString(path);
   }
 }
