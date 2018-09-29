@@ -68,9 +68,16 @@ class _MyHomePageState extends State<MyHomePage> {
     [const Color(0x70FF5722), const Color(0x70FF9800), const Color(0x70FFEB3B)]
   ];
 
-  List<String> assets = ["assets/walking.csv", "assets/running.csv", "assets/biking.csv", "assets/driving.csv"];
+  List<String> assets = [
+    "assets/walking.csv",
+    "assets/running.csv",
+    "assets/biking.csv",
+    "assets/driving.csv"
+  ];
 
   List<RaisedButton> dataButtons = [];
+
+  bool showMarkers = false;
 
   Future initFuture;
 
@@ -84,28 +91,30 @@ class _MyHomePageState extends State<MyHomePage> {
     generateDataButtons();
     clearPositions();
     for (int k = 0; k < TRANSPORT_TYPES; k++) {
-          final csvCodec = new CsvCodec(eol: "\n");
-          List<List<dynamic>> table  = await rootBundle
-                .loadString(assets[k])
-                .asStream()
-                .transform(csvCodec.decoder)
-                .toList();
-            table.removeAt(0);
-          setState(() {
-            for (List<dynamic> row in table) {
-              LatLng GTll = LatLng(row[1], row[2]);
-              LatLng Mobilell = LatLng(row[3], row[4]);
-              //if (positions[k][0][RAW].isEmpty || positions[k][0][RAW].last != GTll)
-                positions[k][0][RAW].add(GTll);
-              //if (positions[k][1][RAW].isEmpty || positions[k][1][RAW].last != Mobilell)
-                positions[k][1][RAW].add(Mobilell);
-            }
+      final csvCodec = new CsvCodec(eol: "\n");
+      List<List<dynamic>> table = await rootBundle
+          .loadString(assets[k])
+          .asStream()
+          .transform(csvCodec.decoder)
+          .toList();
+      table.removeAt(0);
+      setState(() {
+        for (List<dynamic> row in table) {
+          LatLng GTll = LatLng(row[1], row[2]);
+          LatLng Mobilell = LatLng(row[3], row[4]);
+          //if (positions[k][0][RAW].isEmpty || positions[k][0][RAW].last != GTll)
+          positions[k][0][RAW].add(GTll);
+          //if (positions[k][1][RAW].isEmpty || positions[k][1][RAW].last != Mobilell)
+          positions[k][1][RAW].add(Mobilell);
+        }
 
-            for (int j = 0; j < SOURCES; j++) {
-              calculateMeanPositions(k, j);
-              calculateMedianPositions(k, j);
-            }
-          });
+        for (int j = 0; j < SOURCES; j++) {
+          calculateMeanPositions(k, j);
+          calculateMedianPositions(k, j);
+        }
+
+        moveMap();
+      });
     }
   }
 
@@ -116,39 +125,42 @@ class _MyHomePageState extends State<MyHomePage> {
 
     for (int j = 0; j < SOURCES; j++) {
       for (int i = 0; i < NORM_TYPES; i++) {
-        if (!active[j][i]) continue;
-        markers.addAll(positions[activeType][j][i].map((latlng) {
-          return new Marker(
-            width: 5.0,
-            height: 5.0,
-            point: latlng,
-            builder: (ctx) => new Container(
-                  decoration: new BoxDecoration(
-                    color: colors[j][i],
-                    shape: BoxShape.circle,
+        if (!active[j][i]) {
+          continue;
+        }
+        if (showMarkers) {
+          markers.addAll(positions[activeType][j][i].map((latlng) {
+            return new Marker(
+              width: 5.0,
+              height: 5.0,
+              point: latlng,
+              builder: (ctx) => new Container(
+                    decoration: new BoxDecoration(
+                      color: colors[j][i],
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-          );
-        }).toList());
-
+            );
+          }).toList());
+        }
         polylines.add(
             Polyline(points: positions[activeType][j][i], color: colors[j][i]));
       }
     }
-    LatLng focusPos = positions[activeType][0][0].isEmpty ? LatLng(0.0,0.0) : positions[activeType][0][0][0];
-    if (mapController.ready) {
-      mapController.move(focusPos, mapController.zoom);
-    }
-    return new Scaffold(
-        appBar: new AppBar(
-          title: new Text("Leaflet test page"),
+
+    return Scaffold(
+        appBar: AppBar(
+          title: Text("Leaflet test page"),
         ),
         body: Stack(children: <Widget>[
           FlutterMap(
             mapController: mapController,
             options: MapOptions(
                 /*minZoom: 10.0, */
-                center: positions[activeType][0][0].isEmpty ? LatLng(0.0,0.0) : positions[activeType][0][0][0]),//LatLng(56.25714966666666, 10.0690625)),
+                center: positions[activeType][0][0].isEmpty
+                    ? LatLng(0.0, 0.0)
+                    : positions[activeType][0][0]
+                        [0]), //LatLng(56.25714966666666, 10.0690625)),
             layers: [
               TileLayerOptions(
                   urlTemplate:
@@ -162,42 +174,80 @@ class _MyHomePageState extends State<MyHomePage> {
               MarkerLayerOptions(markers: markers)
             ],
           ),
-          new Column(
+          Column(
               mainAxisAlignment: MainAxisAlignment.start,
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.center,
               verticalDirection: VerticalDirection.up,
               children: dataButtons),
-          new Row(
+          Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 RaisedButton(
                     key: null,
-                    onPressed: () => setState(() {activeType = TYPE_WALK;}),
-                    color: activeType != TYPE_WALK ? const Color(0xFFe0e0e0) : Colors.grey,
+                    onPressed: () => setState(() {
+                          activeType = TYPE_WALK;
+                          moveMap();
+                        }),
+                    color: activeType != TYPE_WALK
+                        ? const Color(0xFFe0e0e0)
+                        : Colors.grey,
                     child: Icon(Icons.directions_walk)),
                 RaisedButton(
                     key: null,
-                    onPressed: () => setState(() {activeType = TYPE_RUN;}),
-                    color: activeType != TYPE_RUN ? const Color(0xFFe0e0e0) : Colors.grey,
+                    onPressed: () => setState(() {
+                          activeType = TYPE_RUN;
+                          moveMap();
+                        }),
+                    color: activeType != TYPE_RUN
+                        ? const Color(0xFFe0e0e0)
+                        : Colors.grey,
                     child: Icon(Icons.directions_run)),
                 RaisedButton(
                     key: null,
-                    onPressed: () => setState(() {activeType = TYPE_BIKE;}),
-                    color: activeType != TYPE_BIKE ? const Color(0xFFe0e0e0) : Colors.grey,
+                    onPressed: () => setState(() {
+                          activeType = TYPE_BIKE;
+                          moveMap();
+                        }),
+                    color: activeType != TYPE_BIKE
+                        ? const Color(0xFFe0e0e0)
+                        : Colors.grey,
                     child: Icon(Icons.directions_bike)),
                 RaisedButton(
                     key: null,
-                    onPressed: () => setState(() {activeType = TYPE_CAR;}),
-                    color: activeType != TYPE_CAR ? const Color(0xFFe0e0e0) : Colors.grey,
+                    onPressed: () => setState(() {
+                          activeType = TYPE_CAR;
+                          moveMap();
+                        }),
+                    color: activeType != TYPE_CAR
+                        ? const Color(0xFFe0e0e0)
+                        : Colors.grey,
                     child: Icon(Icons.directions_car))
-              ])
+              ]),
+          Container(
+            alignment: FractionalOffset.bottomRight,
+            child: RaisedButton(
+                key: null,
+                onPressed: () => setState(() {
+                      showMarkers = !showMarkers;
+                    }),
+                child:
+                    Icon(showMarkers ? Icons.location_on : Icons.location_off)),
+          )
         ]));
   }
 
-
+  void moveMap()
+  {
+    if (mapController.ready) {
+      LatLng focusPos = positions[activeType][0][0].isEmpty
+          ? LatLng(0.0, 0.0)
+          : positions[activeType][0][0][0];
+      mapController.move(focusPos, mapController.zoom);
+    }
+  }
 
   void clearPositions() {
     for (int k = 0; k < TRANSPORT_TYPES; k++) {
